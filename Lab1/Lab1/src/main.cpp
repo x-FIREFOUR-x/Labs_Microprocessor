@@ -40,13 +40,29 @@ extern "C" void TIM2_IRQHandler()
 
 int main()
 {
-    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
-    RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_TIM1EN;
+        //SETTING HCLK = 4 * PLLMUL / HPRE_DIV
+    RCC->CFGR &= ~(RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL);
+    RCC->CFGR |= RCC_CFGR_PLLMULL4;             // default 2
+
+    RCC->CR |= RCC_CR_PLLON;
+    while ((RCC->CR & RCC_CR_PLLRDY) == 0) {};
+
+    RCC->CFGR &= ~RCC_CFGR_SW;
+    RCC->CFGR |= RCC_CFGR_SW_PLL;
+    while ((RCC->CFGR & RCC_CFGR_SWS_PLL) == 0) {};
+
+    RCC->CFGR |= RCC_CFGR_HPRE_DIV2;    //default 1
+
+    //RCC->CFGR |=RCC_CFGR_PPRE1_DIV4;    //default 1         //APB1 Prescaler 
+    //RCC->CFGR |=RCC_CFGR_PPRE2_DIV4;    //default 1         //APB2 Prescaler 
 
 
         //SETTING LEDs
+    RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
+    
     GPIOA->CRL |= GPIO_CRL_MODE0_0;  
     GPIOA->CRL |= GPIO_CRL_MODE1_0;
+
 
         //SETTING INTERRUPT FOR 1-ST BUTTON
     //GPIOA->CRL &= ~(GPIO_CRL_CNF9 | GPIO_CRL_MODE9);
@@ -65,6 +81,8 @@ int main()
 
 
         //SETTING TIMER
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+
     NVIC_EnableIRQ(TIM2_IRQn);
 
     TIM2->PSC = 8000 - 1;               // HCLK=8MHz, 8 MHz / (prescaler + 1) = 1000 Hz
@@ -75,6 +93,8 @@ int main()
 
 
         //SETTING ШІМ to PA8(base), PA7
+    RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
+
     GPIOA->CRH &= ~(GPIO_CRH_CNF8, GPIO_CRH_MODE8);
     GPIOA->CRH |= GPIO_CRH_MODE8_0 | GPIO_CRH_CNF8_1;
 

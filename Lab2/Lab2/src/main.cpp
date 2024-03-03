@@ -41,14 +41,14 @@ extern "C" void USART2_IRQHandler()
 
 int main()
 {
-        //SETTING UART
+        //1.1 SETTING UART
     RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
 
     USART1->BRR = 8000000 / 9600;                   // Швидкість 9600 біт/с
     USART1->CR1 |= USART_CR1_TE | USART_CR1_UE;     // увімкнення передачі та включення UART
 
     
-        //SETTING ADC (АЦП)
+        //1.2 SETTING ADC (АЦП)
     RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
 
     ADC1->CR2 |= ADC_CR2_ADON | ADC_CR2_CONT;                                   // увімкнути АЦП, увімкнути режим перетворення
@@ -56,7 +56,7 @@ int main()
     ADC1->CR2 |= ADC_CR2_SWSTART;                                               // запуск АЦП
 
 
-        //SETTING UART for command
+        //2 SETTING UART for command on/off led
     RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
 
     USART2->BRR = 8000000 / 9600;                                      // Швидкість 9600 біт/с
@@ -66,12 +66,14 @@ int main()
     RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
     GPIOA->CRL |= GPIO_CRL_MODE1_0;
 
+
     while (true)
     {
+            //1.3 Output ADC value to UART 
         while (!(ADC1->SR & ADC_SR_EOC)){};
 
         char value_adc[50];
-        snprintf(value_adc, 50, "ADC = %d \r\n", ADC1->DR);
+        snprintf(value_adc, 50, "ADC = %d \r\n", (int)(ADC1->DR));
         UART_send(USART1, value_adc);
 
         ADC1->SR &= ~ADC_SR_EOC; 

@@ -1,6 +1,7 @@
 #include "stm32f103x6.h"
 #include <stdio.h>
 #include <string>
+#include <string.h>
 
 void UART_send(USART_TypeDef* USARTx, char ch) {
     while (!(USARTx->SR & USART_SR_TXE)){};
@@ -14,17 +15,17 @@ void UART_send(USART_TypeDef* USARTx, std::string message) {
 }
 
 int pwd_time_cycle = 1000;
-void handle_cmd(std::string& line)
+void handle_cmd(const std::string& line)
 {
-    if (line == "on")
+    if (strcmp(line.c_str(), "on") == 0)
     {
         GPIOA->BSRR = GPIO_BSRR_BS1;
     }
-    else if (line == "off")
+    else if (strcmp(line.c_str(), "off") == 0)
     {
         GPIOA->BSRR = GPIO_BSRR_BR1;
     }
-    else if (line.substr(0, 6) == "timer:")
+    else if (strcmp((line.substr(0, 6)).c_str(), "timer:") == 0)
     {
         int intPart = atoi(&line.substr(6)[0]);
         float fractionalPart = atof(&line.substr(6)[0]);
@@ -36,7 +37,7 @@ void handle_cmd(std::string& line)
             TIM2->CR1 |= TIM_CR1_CEN;
         } 
     }
-    else if (line.substr(0, 6) == "pwd-p:")
+    else if (strcmp((line.substr(0, 6)).c_str(), "pwd-p:") == 0)
     {
         if (line.substr(6,1) == "0")
         {
@@ -53,7 +54,7 @@ void handle_cmd(std::string& line)
             TIM1->CR1 |= TIM_CR1_CEN;
         }
     }
-    else if (line.substr(0, 8) == "pwd-crr:")
+    else if (strcmp((line.substr(0, 8)).c_str(), "pwd-crr:") == 0)
     {
         int intPart = atoi(&line.substr(8)[0]);
         float fractionalPart = atof(&line.substr(8)[0]);
@@ -67,19 +68,20 @@ void handle_cmd(std::string& line)
     }
 }
 
+bool can_handling_cmd = false;
 std::string cmd;
 extern "C" void USART2_IRQHandler()
 {
     if (USART2->DR != '\n' && USART2->DR != '\r')
     {
         cmd.push_back(USART2->DR);
+        USART2->SR &= ~USART_SR_RXNE;
     }
     else
     {
-        handle_cmd(cmd);
-        cmd = "";
+        USART2->CR1 &= ~USART_CR1_UE;
+        can_handling_cmd = true;
     }
-    USART2->SR &= ~USART_SR_RXNE;
 }
 
 extern "C" void TIM2_IRQHandler()
@@ -133,7 +135,7 @@ int main()
     AFIO->MAPR |= AFIO_MAPR_TIM1_REMAP_0;
 
     TIM1->PSC = 8000 - 1;
-    TIM1->ARR = 1000 - 1;
+    TIM1->ARR = pwd_time_cycle - 1;
     TIM1->CCR1 = 250 - 1;
 
     TIM1->CCMR1 |= TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2; // on ШІМ
@@ -146,12 +148,21 @@ int main()
     {
             //1.3 Output ADC value to UART
         while (!(ADC1->SR & ADC_SR_EOC)){};
-
         char value_adc[50];
         snprintf(value_adc, 50, "ADC = %d \r\n", (int)(ADC1->DR));
-        //UART_send(USART1, value_adc);
-
+        UART_send(USART1, value_adc);
         ADC1->SR &= ~ADC_SR_EOC;
+
+            // 2,3 handing command
+        if (can_handling_cmd)
+        {
+            handle_cmd(cmd);
+            cmd = "";
+            can_handling_cmd = false;
+
+            USART2->CR1 |= USART_CR1_UE;
+            USART2->SR &= ~USART_SR_RXNE;
+        }
     }
     
     return 0;

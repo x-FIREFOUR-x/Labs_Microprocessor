@@ -29,11 +29,12 @@ void handle_cmd(const std::string& line)
     {
         int intPart = atoi(&line.substr(6)[0]);
         float fractionalPart = atof(&line.substr(6)[0]);
-        if (intPart >= 0 && fractionalPart >= 0 && (intPart + fractionalPart) > 0)
+        float value = (intPart + fractionalPart);
+        if (intPart >= 0 && fractionalPart >= 0 && value > 0)
         {
             TIM2->CR1 &= ~TIM_CR1_CEN;
             TIM2->CNT = 0;
-            TIM2->ARR = (1000 * (intPart + fractionalPart)) - 1;
+            TIM2->ARR = 1000 * value - 1;
             TIM2->CR1 |= TIM_CR1_CEN;
         } 
     }
@@ -58,11 +59,12 @@ void handle_cmd(const std::string& line)
     {
         int intPart = atoi(&line.substr(8)[0]);
         float fractionalPart = atof(&line.substr(8)[0]);
-        if (intPart >= 0 && fractionalPart >= 0 && (intPart + fractionalPart) >= 0 && (intPart + fractionalPart) <= 1)
+        float value = (intPart + fractionalPart);
+        if (intPart >= 0 && fractionalPart >= 0 && value >= 0 && value <= 1)
         {
             TIM1->CR1 &= ~TIM_CR1_CEN;
             TIM1->CNT = 0;
-            TIM1->CCR1 = (pwd_time_cycle * (intPart + fractionalPart)) - 1;
+            TIM1->CCR1 = pwd_time_cycle * value - 1;
             TIM1->CR1 |= TIM_CR1_CEN;
         } 
     }
@@ -97,13 +99,15 @@ int main()
 
     USART1->BRR = 8000000 / 9600;                   // Швидкість 9600 біт/с
     USART1->CR1 |= USART_CR1_TE | USART_CR1_UE;     // увімкнення передачі та включення UART
-    
+
+
         // 1.2 SETTING ADC (АЦП)
     RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
 
     ADC1->CR2 |= ADC_CR2_ADON | ADC_CR2_CONT;                                   // увімкнути АЦП, увімкнути режим перетворення
     ADC1->SMPR2 |= ADC_SMPR2_SMP0_0 | ADC_SMPR2_SMP0_1 | ADC_SMPR2_SMP0_2;      // встановлюємо час перевірки значення
     ADC1->CR2 |= ADC_CR2_SWSTART;                                               // запуск АЦП
+
 
         // 2 SETTING UART for command on/off led
     RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
@@ -115,6 +119,7 @@ int main()
     RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
     GPIOA->CRL |= GPIO_CRL_MODE1_0;
 
+
         // 3 SETTING TIMER (and led) for command 
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
     NVIC_EnableIRQ(TIM2_IRQn);
@@ -125,6 +130,7 @@ int main()
 
     RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
     GPIOA->CRL |= GPIO_CRL_MODE2_0;
+
 
         //3 SETTING ШІМ to PA8(base), PA7 for command 
     RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
@@ -144,6 +150,8 @@ int main()
 
     TIM1->CR1 |= TIM_CR1_CEN;
 
+
+
     while (true)
     {
             //1.3 Output ADC value to UART
@@ -152,6 +160,7 @@ int main()
         snprintf(value_adc, 50, "ADC = %d \r\n", (int)(ADC1->DR));
         UART_send(USART1, value_adc);
         ADC1->SR &= ~ADC_SR_EOC;
+
 
             // 2,3 handing command
         if (can_handling_cmd)

@@ -13,6 +13,7 @@ void UART_send(USART_TypeDef* USARTx, std::string message) {
     while (!(USARTx->SR & USART_SR_TC)) {};
 }
 
+int pwd_time_cycle = 1000;
 void handle_cmd(std::string& line)
 {
     if (line == "on")
@@ -51,7 +52,18 @@ void handle_cmd(std::string& line)
             TIM1->CCER |= TIM_CCER_CC1P;
             TIM1->CR1 |= TIM_CR1_CEN;
         }
-        
+    }
+    else if (line.substr(0, 8) == "pwd-crr:")
+    {
+        int intPart = atoi(&line.substr(8)[0]);
+        float fractionalPart = atof(&line.substr(8)[0]);
+        if (intPart >= 0 && fractionalPart >= 0 && (intPart + fractionalPart) >= 0 && (intPart + fractionalPart) <= 1)
+        {
+            TIM1->CR1 &= ~TIM_CR1_CEN;
+            TIM1->CNT = 0;
+            TIM1->CCR1 = (pwd_time_cycle * (intPart + fractionalPart)) - 1;
+            TIM1->CR1 |= TIM_CR1_CEN;
+        } 
     }
 }
 
@@ -137,7 +149,7 @@ int main()
 
         char value_adc[50];
         snprintf(value_adc, 50, "ADC = %d \r\n", (int)(ADC1->DR));
-        UART_send(USART1, value_adc);
+        //UART_send(USART1, value_adc);
 
         ADC1->SR &= ~ADC_SR_EOC;
     }

@@ -2,44 +2,31 @@
 #include <stdio.h>
 #include <string>
 
-
 void UART_send(USART_TypeDef* USARTx, char ch) {
-    while (!(USARTx->SR & USART_SR_TXE)){};       // Чекаємо, доки буфер передачі буде готовий для відправлення наступного байту
-    USARTx->DR = ch;                            // Записуємо дані для відправлення в регістр даних (DR)
+    while (!(USARTx->SR & USART_SR_TXE)){};
+    USARTx->DR = ch;
 }
 
 void UART_send(USART_TypeDef* USARTx, std::string message) {
-    for (auto s : message) {
+    for (auto s : message) 
         UART_send(USARTx, s);
-    }
-    
-    while (!(USARTx->SR & USART_SR_TC));    // Чекаємо завершення передачі
+    while (!(USARTx->SR & USART_SR_TC)) {};
 }
 
-std::string cmd;
-extern "C" void USART2_IRQHandler()
+void handle_cmd(std::string& line)
 {
-    if (USART2->DR != '\n' && USART2->DR != '\r')
-    {
-        cmd.push_back(USART2->DR);
-        USART2->SR &= ~USART_SR_RXNE;
-        return;
-    }
-
-    if (cmd == "on")
+    if (line == "on")
     {
         GPIOA->BSRR = GPIO_BSRR_BS1;
     }
-    else if (cmd == "off")
+    else if (line == "off")
     {
         GPIOA->BSRR = GPIO_BSRR_BR1;
     }
-    else if (cmd.substr(0, 6) == "timer:")
+    else if (line.substr(0, 6) == "timer:")
     {
-        std::string digit = cmd.substr(6);
-        int intPart = atoi(&digit[0]);
-        float fractionalPart = atof(&digit[0]);
-
+        int intPart = atoi(&line.substr(6)[0]);
+        float fractionalPart = atof(&line.substr(6)[0]);
         if (intPart >= 0 && fractionalPart >= 0 && (intPart + fractionalPart) > 0)
         {
             TIM2->CR1 &= ~TIM_CR1_CEN;
@@ -48,8 +35,38 @@ extern "C" void USART2_IRQHandler()
             TIM2->CR1 |= TIM_CR1_CEN;
         } 
     }
+    else if (line.substr(0, 6) == "pwd-p:")
+    {
+        if (line.substr(6,1) == "0")
+        {
+            TIM1->CR1 &= ~TIM_CR1_CEN;
+            TIM1->CNT = 0;
+            TIM1->CCER &= ~TIM_CCER_CC1P;
+            TIM1->CR1 |= TIM_CR1_CEN;
+        }
+        else if (line.substr(6,1) == "1")
+        {
+            TIM1->CR1 &= ~TIM_CR1_CEN;
+            TIM1->CNT = 0;
+            TIM1->CCER |= TIM_CCER_CC1P;
+            TIM1->CR1 |= TIM_CR1_CEN;
+        }
+        
+    }
+}
 
-    cmd = "";
+std::string cmd;
+extern "C" void USART2_IRQHandler()
+{
+    if (USART2->DR != '\n' && USART2->DR != '\r')
+    {
+        cmd.push_back(USART2->DR);
+    }
+    else
+    {
+        handle_cmd(cmd);
+        cmd = "";
+    }
     USART2->SR &= ~USART_SR_RXNE;
 }
 
@@ -66,7 +83,6 @@ int main()
 
     USART1->BRR = 8000000 / 9600;                   // Швидкість 9600 біт/с
     USART1->CR1 |= USART_CR1_TE | USART_CR1_UE;     // увімкнення передачі та включення UART
-
     
         // 1.2 SETTING ADC (АЦП)
     RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
@@ -74,7 +90,6 @@ int main()
     ADC1->CR2 |= ADC_CR2_ADON | ADC_CR2_CONT;                                   // увімкнути АЦП, увімкнути режим перетворення
     ADC1->SMPR2 |= ADC_SMPR2_SMP0_0 | ADC_SMPR2_SMP0_1 | ADC_SMPR2_SMP0_2;      // встановлюємо час перевірки значення
     ADC1->CR2 |= ADC_CR2_SWSTART;                                               // запуск АЦП
-
 
         // 2 SETTING UART for command on/off led
     RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
@@ -85,7 +100,6 @@ int main()
 
     RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
     GPIOA->CRL |= GPIO_CRL_MODE1_0;
-
 
         // 3 SETTING TIMER (and led) for command 
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
@@ -98,6 +112,23 @@ int main()
     RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
     GPIOA->CRL |= GPIO_CRL_MODE2_0;
 
+        //3 SETTING ШІМ to PA8(base), PA7 for command 
+    RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
+
+    GPIOA->CRH &= ~(GPIO_CRH_CNF8, GPIO_CRH_MODE8);
+    GPIOA->CRH |= GPIO_CRH_MODE8_0 | GPIO_CRH_CNF8_1;
+
+    AFIO->MAPR |= AFIO_MAPR_TIM1_REMAP_0;
+
+    TIM1->PSC = 8000 - 1;
+    TIM1->ARR = 1000 - 1;
+    TIM1->CCR1 = 250 - 1;
+
+    TIM1->CCMR1 |= TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2; // on ШІМ
+    TIM1->CCER |= TIM_CCER_CC1E | TIM_CCER_CC1P;
+    TIM1->BDTR |= TIM_BDTR_MOE;
+
+    TIM1->CR1 |= TIM_CR1_CEN;
 
     while (true)
     {

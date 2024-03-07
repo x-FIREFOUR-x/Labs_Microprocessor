@@ -86,7 +86,7 @@ int main()
     NVIC_EnableIRQ(TIM2_IRQn);
 
     TIM2->PSC = 8000 - 1;               // HCLK=8MHz, 8 MHz / (prescaler + 1) = 1000 Hz
-    TIM2->ARR = (1000 / 0.8) - 1;       // 1000 Hz / (period + 1) = 2.3 Hz = 2.3 in 1s  (T1 = 2.3)
+    TIM2->ARR = (1000 / 2.3) - 1;       // 1000 Hz / (period + 1) = 2.3 Hz => 2.3 in 1s (T1 = 2.3) => 2.3/2.3 in 1 /2.3 => 1 in 0.435s 
 
     TIM2->DIER = TIM_DIER_UIE;
     TIM2->CR1 = TIM_CR1_CEN;
